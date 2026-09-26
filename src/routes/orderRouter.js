@@ -20,7 +20,15 @@ orderRouter.docs = [
     requiresAuth: true,
     description: 'Add an item to the menu',
     example: `curl -X PUT localhost:3000/api/order/menu -H 'Content-Type: application/json' -d '{ "title":"Student", "description": "No topping, no sauce, just carbs", "image":"pizza9.png", "price": 0.0001 }'  -H 'Authorization: Bearer tttttt'`,
-    response: [{ id: 1, title: 'Student', description: 'No topping, no sauce, just carbs', image: 'pizza9.png', price: 0.0001 }],
+    response: { 'message': ''},
+  },
+  {
+    method: 'DELETE',
+    path: '/api/order/menu/:itemId',
+    requiresAuth: true,
+    description: 'Remmoves an item from the menu',
+    example: `curl -X DELETE localhost:3000/api/order/menu/1' -H 'Authorization: Bearer tttttt'`,
+    response: { message: 'menue item deleted'},
   },
   {
     method: 'GET',
@@ -58,8 +66,22 @@ orderRouter.put(
     }
 
     const addMenuItemReq = req.body;
-    await DB.addMenuItem(addMenuItemReq);
-    res.send(await DB.getMenu());
+    res.send(await DB.addMenuItem(addMenuItemReq));
+    // res.send(await DB.getMenu());
+  })
+);
+
+// removeMenueItem
+orderRouter.delete(
+  '/menu/:itemId',
+  authRouter.authenticateToken,
+  asyncHandler(async (req, res) => {
+    const itemId = Number(req.params.itemId);
+    if (!req.user.isRole(Role.Admin)) {
+      throw new StatusCodeError('unable to delete menu item', 403);
+    }
+    await DB.deleteMenuItem(itemId);
+    res.json({ message: 'menue item deleted'});
   })
 );
 
