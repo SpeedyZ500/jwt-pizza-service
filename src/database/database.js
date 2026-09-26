@@ -266,7 +266,7 @@ class DB {
     const connection = await this.getConnection();
     try {
       const insertResult = await this.query(connection, `INSERT INTO store (franchiseId, name) VALUES (?, ?)`, [franchiseId, store.name]);
-      return { id: insertResult.insertId, franchiseId, name: store.name };
+      return { id: insertResult.insertId, franchiseId, name: store.name, totalRevenue: 0 };
     } finally {
       connection.end();
     }
