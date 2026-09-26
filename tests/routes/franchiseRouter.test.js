@@ -1,6 +1,10 @@
 const request = require("supertest");
 const app = require("../../src/service");
-const { createAdminUser, randomName, expectValidJwt } = require("../testService");
+const {
+    createAdminUser,
+    randomName,
+    expectValidJwt,
+} = require("../testService");
 
 let testUserAuthToken;
 let userId;
@@ -15,26 +19,27 @@ beforeEach(async () => {
 });
 
 test("Get Fanchises for User", async () => {
-    const listFranchisesRes =  await request(app).get(`/api/franchise/${userId}`).set()
-})
-
-
-
-
-describe("needs admin", () => {
-    let adminAuthToken;
-    let admin;
-
-    beforeAll(async () => {
-        admin = await createAdminUser();
-    });
-    beforeEach(async () => {
-        const sendUser = { ...admin };
-        delete sendUser.roles;
-        delete sendUser.id;
-        const loginRes = await request(app).put("/api/auth").send(sendUser);
-        adminAuthToken = loginRes.body.token;
-        expectValidJwt(adminAuthToken);
-    });
-    
+    const listFranchisesRes = await request(app)
+        .get(`/api/franchise/${userId}`)
+        .set("Authorization", `Bearer ${testUserAuthToken}`);
+    expect(listFranchisesRes.status).toBe(200);
+    expect(listFranchisesRes.body).toEqual([]);
 });
+
+// describe("needs admin", () => {
+//     let adminAuthToken;
+//     let admin;
+
+//     beforeAll(async () => {
+//         admin = await createAdminUser();
+//     });
+//     beforeEach(async () => {
+//         const sendUser = { ...admin };
+//         delete sendUser.roles;
+//         delete sendUser.id;
+//         const loginRes = await request(app).put("/api/auth").send(sendUser);
+//         adminAuthToken = loginRes.body.token;
+//         expectValidJwt(adminAuthToken);
+//     });
+
+// });
