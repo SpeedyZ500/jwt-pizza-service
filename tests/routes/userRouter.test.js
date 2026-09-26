@@ -45,6 +45,27 @@ test("update user", async () => {
     expect(updateRes.body.user).toMatchObject(expectedUser);
 });
 
+test("delete user", async () => {
+    const deleteRes = await request(app)
+        .delete(`/api/user/${userId}`)
+        .set("Authorization", `Bearer ${testUserAuthToken}`);
+    expect(deleteRes.status).toBe(200);
+
+    const expectedObject = {message : 'not implemented'};
+    expect(deleteRes.body).toMatchObject(expectedObject);
+});
+
+test("list users", async () => {
+    const deleteRes = await request(app)
+        .get('/api/user/')
+        .set("Authorization", `Bearer ${testUserAuthToken}`);
+    expect(deleteRes.status).toBe(200);
+
+    const expectedObject = {message : 'not implemented', users: [], more: false};
+    expect(deleteRes.body).toMatchObject(expectedObject);
+});
+
+
 test("update user unauthorized", async () => {
     const updateTo = {
         name: randomName(),
