@@ -62,14 +62,18 @@ test("update user unauthorized", async () => {
 });
 
 describe("needs admin", () => {
-    let admin;
     let adminAuthToken;
+    let admin;
+
     beforeAll(async () => {
         admin = await createAdminUser();
+    });
+    beforeEach(async () => {
         const sendUser = { ...admin };
         delete sendUser.roles;
-        const registerRes = await request(app).post("/api/auth").send(sendUser);
-        adminAuthToken = registerRes.body.token;
+        delete sendUser.id;
+        const loginRes = await request(app).put("/api/auth").send(sendUser);
+        adminAuthToken = loginRes.body.token;
         expectValidJwt(adminAuthToken);
     });
     test("admin gets self", async () => {
@@ -79,5 +83,23 @@ describe("needs admin", () => {
         const expectedUser = { ...admin };
         delete expectedUser.password;
         expect(userRes.body).toMatchObject(expectedUser);
+    });
+
+    test("admin update user", async () => {
+        const updateTo = {
+            name: randomName(),
+            email: `${randomName()}@test.com`,
+            password: `Y010`,
+        };
+        const updateRes = await request(app)
+            .put(`/api/user/${userId}`)
+            .send(updateTo)
+            .set("Authorization", `Bearer ${adminAuthToken}`);
+        expect(updateRes.status).toBe(200);
+        expectValidJwt(updateRes.body.token);
+
+        const expectedUser = { ...updateTo, roles: [{ role: "diner" }] };
+        delete expectedUser.password;
+        expect(updateRes.body.user).toMatchObject(expectedUser);
     });
 });

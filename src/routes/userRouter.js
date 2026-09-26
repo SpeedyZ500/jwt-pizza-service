@@ -29,6 +29,7 @@ userRouter.get(
   '/me',
   authRouter.authenticateToken,
   asyncHandler(async (req, res) => {
+    DB.getUser
     res.json(req.user);
   })
 );
