@@ -1,5 +1,6 @@
 const request = require('supertest');
 const app = require('../../src/service');
+const { randomName, expectValidJwt } = require('../testService')
 
 const testUser = { name: 'pizza diner', email: 'reg@test.com', password: 'a' };
 let testUserAuthToken;
@@ -21,6 +22,41 @@ test('login', async () => {
   expect(loginRes.body.user).toMatchObject(expectedUser);
 });
 
-function expectValidJwt(potentialJwt) {
-  expect(potentialJwt).toMatch(/^[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*$/);
-}
+test('logout', async () => {
+    const logoutRes = await request(app).delete('/api/auth').set('Authorization', `Bearer ${testUserAuthToken}`)
+    expect(logoutRes.status).toBe(200);
+    const expectedObject = { message: 'logout successful'};
+    expect(logoutRes.body).toMatchObject(expectedObject);
+})
+
+test('logout fail', async () => {
+    const logoutRes = await request(app).delete('/api/auth').set('Authorization', 'Bearer yeet')
+    expect(logoutRes.status).toBe(401);
+    const expectedObject = { message: 'unauthorized'};
+    expect(logoutRes.body).toMatchObject(expectedObject);
+})
+
+test('register', async () => {
+    const name = randomName();
+    const email = `${randomName()}@test.com`;
+    const password = "t3st_pa55";
+    const user = {name: name, email: email, password: password}
+    const registerRes = await request(app).post('/api/auth').send(user);
+    expect(registerRes.status).toBe(200);
+    expectValidJwt(registerRes.body.token);
+    const expectedUser = { ...user, roles: [{ role: 'diner' }] };
+    delete expectedUser.password;
+    expect(registerRes.body.user).toMatchObject(expectedUser);
+
+})
+
+test('register fail', async () => {
+    const name = randomName();
+    const password = "t3st_pa55";
+    const user = {name: name, password: password}
+    const registerRes = await request(app).post('/api/auth').send(user);
+    expect(registerRes.status).toBe(400);
+    expect(registerRes.body).toMatchObject({ message: 'name, email, and password are required'})
+
+})
+
