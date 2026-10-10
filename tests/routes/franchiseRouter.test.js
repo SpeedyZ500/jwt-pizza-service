@@ -4,23 +4,21 @@ const {
     createAdminUser,
     randomName,
     expectValidJwt,
+    registerUser
 } = require("../testService");
 
 let testUserAuthToken;
-let userId;
+let testUser;
 
-const testUser = { name: "pizza diner", email: "reg@test.com", password: "a" };
 beforeEach(async () => {
-    testUser.email = randomName() + "@test.com";
-    const registerRes = await request(app).post("/api/auth").send(testUser);
-    userId = registerRes.body.user.id;
-    testUserAuthToken = registerRes.body.token;
+    [testUser,testUserAuthToken] = await registerUser(request(app));
+    
     expectValidJwt(testUserAuthToken);
 });
 
 test("Get franchise for User", async () => {
     const listFranchisesRes = await request(app)
-        .get(`/api/franchise/${userId}`)
+        .get(`/api/franchise/${testUser.id}`)
         .set("Authorization", `Bearer ${testUserAuthToken}`);
     expect(listFranchisesRes.status).toBe(200);
     expect(listFranchisesRes.body).toEqual([]);
@@ -28,7 +26,7 @@ test("Get franchise for User", async () => {
 
 test("Get franchise for not the user", async () => {
     const listFranchisesRes = await request(app)
-        .get(`/api/franchise/${userId + 1}`)
+        .get(`/api/franchise/${testUser.id + 1}`)
         .set("Authorization", `Bearer ${testUserAuthToken}`);
     expect(listFranchisesRes.status).toBe(200);
     expect(listFranchisesRes.body).toEqual([]);
@@ -36,7 +34,7 @@ test("Get franchise for not the user", async () => {
 
 test("Get franchise for not the user", async () => {
     const listFranchisesRes = await request(app)
-        .get(`/api/franchise/${userId + 1}`)
+        .get(`/api/franchise/${testUser.id + 1}`)
         .set("Authorization", `Bearer ${testUserAuthToken}`);
     expect(listFranchisesRes.status).toBe(200);
     expect(listFranchisesRes.body).toEqual([]);

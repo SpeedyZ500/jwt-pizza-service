@@ -4,15 +4,13 @@ const {
     createAdminUser,
     randomName,
     expectValidJwt,
+    registerUser
 } = require("../testService");
 
 let testUserAuthToken;
-
-const testUser = { name: "pizza diner", email: "reg@test.com", password: "a" };
 beforeAll(async () => {
-    testUser.email = randomName() + "@test.com";
-    const registerRes = await request(app).post("/api/auth").send(testUser);
-    testUserAuthToken = registerRes.body.token;
+    [,testUserAuthToken] = await registerUser(request(app))
+
     expectValidJwt(testUserAuthToken);
 });
 

@@ -19,4 +19,17 @@ function expectValidJwt(potentialJwt) {
     );
 }
 
-module.exports = { createAdminUser, randomName, expectValidJwt };
+async function registerUser(service) {
+  const testUser = {
+    name: 'pizza diner',
+    email: `${randomName()}@test.com`,
+    password: 'a',
+  };
+  const registerRes = await service.post('/api/auth').send(testUser);
+  registerRes.body.user.password = testUser.password;
+
+  return [registerRes.body.user, registerRes.body.token];
+}
+
+
+module.exports = { createAdminUser, randomName, expectValidJwt, registerUser };
