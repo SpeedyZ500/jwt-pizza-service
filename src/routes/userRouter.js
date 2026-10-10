@@ -39,7 +39,7 @@ userRouter.docs = [
         method: "GET",
         path: "/api/user?page=1&limit=10&name=*",
         requiresAuth: true,
-        description: "Gets a list of users",
+        description: "Gets a list of users (admin only). Defaults: page=1, limit=10, name=*. Use * as a name wildcard.",
         example: `curl -X GET localhost:3000/api/user -H 'Authorization: Bearer tttttt'`,
         response: {
             users: [
@@ -50,7 +50,16 @@ userRouter.docs = [
                     roles: [{ role: "admin" }],
                 },
             ],
+            more: false,
         },
+    },
+    {
+        method: "DELETE",
+        path: "/api/user/:userId",
+        requiresAuth: true,
+        description: "Deletes a user and their authentication and roles (admin only)",
+        example: `curl -X DELETE localhost:3000/api/user/3 -H 'Authorization: Bearer tttttt'`,
+        response: {},
     },
 ];
 
@@ -77,6 +86,9 @@ userRouter.put(
         }
 
         const updatedUser = await DB.updateUser(userId, name, email, password);
+        if (!updatedUser) {
+            return res.status(404).json({ message: "unknown user" });
+        }
         const auth = await setAuth(updatedUser);
         res.json({ user: updatedUser, token: auth });
     }),
@@ -87,13 +99,19 @@ userRouter.delete(
     "/:userId",
     authRouter.authenticateToken,
     asyncHandler(async (req, res) => {
-        // const userId = Number(req.params.userId);
-        // const user = req.user;
-        // if (user.id !== userId && !user.isRole(Role.Admin)) {
-        //   return res.status(403).json({ message: 'unauthorized' });
-        // }
-        // await DB.
-        res.json({ message: "not implemented" });
+        const user = req.user;
+        if (!user.isRole(Role.Admin)) {
+            return res.status(403).json({ message: "unauthorized" });
+        }
+        const userId = Number(req.params.userId);
+        if (!Number.isSafeInteger(userId) || userId <= 0) {
+            return res.status(400).json({ message: "invalid user ID" });
+        }
+        const deleted = await DB.deleteUser(userId);
+        if (!deleted) {
+            return res.status(404).json({ message: "unknown user" });
+        }
+        res.json({});
     }),
 );
 
@@ -106,7 +124,15 @@ userRouter.get(
         if (!user.isRole(Role.Admin)) {
             return res.status(403).json({ message: "unauthorized" });
         }
-        res.json({ message: "not implemented", users: [], more: false });
+        const { page = "1", limit = "10", name = "*" } = req.query;
+        const validInteger = (value) => typeof value === "string" &&
+            /^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) > 0;
+        if (!validInteger(page) || !validInteger(limit) || typeof name !== "string" ||
+            !Number.isSafeInteger(Number(limit) + 1) ||
+            !Number.isSafeInteger((Number(page) - 1) * Number(limit))) {
+            return res.status(400).json({ message: "invalid user list query" });
+        }
+        res.json(await DB.getUsers(Number(page), Number(limit), name));
     }),
 );
 

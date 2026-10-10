@@ -1,7 +1,6 @@
 const mysql = require("mysql2/promise");
 const bcrypt = require("bcrypt");
 const config = require("../config.js");
-const { StatusCodeError } = require("../endpointHelper.js");
 const { Role } = require("../model/model.js");
 const dbModel = require("./dbModel.js");
 class DB {
@@ -100,7 +99,7 @@ class DB {
                 !user ||
                 (password && !(await bcrypt.compare(password, user.password)))
             ) {
-                throw new StatusCodeError("unknown user", 404);
+                return null;
             }
 
             const roleResult = await this.query(
@@ -115,6 +114,62 @@ class DB {
             return { ...user, roles: roles, password: undefined };
         } finally {
             connection.end();
+        }
+    }
+
+    async getUsers(page = 1, limit = 10, name = "*") {
+        const connection = await this.getConnection();
+        try {
+            const offset = (page - 1) * limit;
+            const rows = await this.query(
+                connection,
+                "SELECT id, name, email FROM user WHERE name LIKE ? ORDER BY id LIMIT ? OFFSET ?",
+                [name.replace(/\*/g, "%"), String(limit + 1), String(offset)],
+            );
+            const more = rows.length > limit;
+            const users = rows.slice(0, limit);
+            for (const user of users) {
+                const roles = await this.query(
+                    connection,
+                    "SELECT role, objectId FROM userRole WHERE userId=? ORDER BY id",
+                    [user.id],
+                );
+                user.roles = roles.map((role) => ({
+                    role: role.role,
+                    objectId: role.objectId || undefined,
+                }));
+            }
+            return { users, more };
+        } finally {
+            await connection.end();
+        }
+    }
+
+    async deleteUser(userId) {
+        const connection = await this.getConnection();
+        try {
+            await connection.beginTransaction();
+            try {
+                const users = await this.query(
+                    connection,
+                    "SELECT id FROM user WHERE id=? FOR UPDATE",
+                    [userId],
+                );
+                if (users.length === 0) {
+                    await connection.rollback();
+                    return false;
+                }
+                await this.query(connection, "DELETE FROM auth WHERE userId=?", [userId]);
+                await this.query(connection, "DELETE FROM userRole WHERE userId=?", [userId]);
+                await this.query(connection, "DELETE FROM user WHERE id=?", [userId]);
+                await connection.commit();
+                return true;
+            } catch (error) {
+                await connection.rollback();
+                throw new Error("unable to delete user", { cause: error });
+            }
+        } finally {
+            await connection.end();
         }
     }
 
@@ -244,10 +299,7 @@ class DB {
                     [admin.email],
                 );
                 if (adminUser.length == 0) {
-                    throw new StatusCodeError(
-                        `unknown user for franchise admin ${admin.email} provided`,
-                        404,
-                    );
+                    return null;
                 }
                 admin.id = adminUser[0].id;
                 admin.name = adminUser[0].name;
@@ -295,9 +347,9 @@ class DB {
                     [franchiseId],
                 );
                 await connection.commit();
-            } catch {
+            } catch (error) {
                 await connection.rollback();
-                throw new StatusCodeError("unable to delete franchise", 500);
+                throw new Error("unable to delete franchise", { cause: error });
             }
         } finally {
             connection.end();

@@ -89,7 +89,11 @@ franchiseRouter.post(
     }
 
     const franchise = req.body;
-    res.send(await DB.createFranchise(franchise));
+    const createdFranchise = await DB.createFranchise(franchise);
+    if (!createdFranchise) {
+      return res.status(404).json({ message: 'unknown user for franchise admin provided' });
+    }
+    res.send(createdFranchise);
   })
 );
 
