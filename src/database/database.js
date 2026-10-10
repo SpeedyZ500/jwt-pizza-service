@@ -124,10 +124,10 @@ class DB {
         return { ...user, roles, password: undefined };
     }
 
-    async getUsers(page = 1, limit = 10, name = "*") {
+    async getUsers(page = 0, limit = 10, name = "*") {
         const connection = await this.getConnection();
         try {
-            const offset = (page - 1) * limit;
+            const offset = page * limit;
             const rows = await this.query(
                 connection,
                 "SELECT id, name, email FROM user WHERE name LIKE ? ORDER BY id LIMIT ? OFFSET ?",

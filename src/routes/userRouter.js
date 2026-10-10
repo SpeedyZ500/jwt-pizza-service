@@ -37,9 +37,9 @@ userRouter.docs = [
     },
     {
         method: "GET",
-        path: "/api/user?page=1&limit=10&name=*",
+        path: "/api/user?page=0&limit=10&name=*",
         requiresAuth: true,
-        description: "Gets a list of users (admin only). Defaults: page=1, limit=10, name=*. Use * as a name wildcard.",
+        description: "Gets a list of users (admin only). Defaults: page=0, limit=10, name=*. Use * as a name wildcard.",
         example: `curl -X GET localhost:3000/api/user -H 'Authorization: Bearer tttttt'`,
         response: {
             users: [
@@ -124,12 +124,12 @@ userRouter.get(
         if (!user.isRole(Role.Admin)) {
             return res.status(403).json({ message: "unauthorized" });
         }
-        const { page = "1", limit = "10", name = "*" } = req.query;
+        const { page = "0", limit = "10", name = "*" } = req.query;
         const validInteger = (value) => typeof value === "string" &&
-            /^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) > 0;
-        if (!validInteger(page) || !validInteger(limit) || typeof name !== "string" ||
+            /^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) >= 0;
+        if (!validInteger(page) || !validInteger(limit) || Number(limit) === 0 || typeof name !== "string" ||
             !Number.isSafeInteger(Number(limit) + 1) ||
-            !Number.isSafeInteger((Number(page) - 1) * Number(limit))) {
+            !Number.isSafeInteger(Number(page) * Number(limit))) {
             return res.status(400).json({ message: "invalid user list query" });
         }
         res.json(await DB.getUsers(Number(page), Number(limit), name));

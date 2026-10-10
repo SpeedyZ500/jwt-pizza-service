@@ -141,7 +141,7 @@ describe("authorized tests", () => {
                     .set("Authorization", `Bearer ${adminAuthToken}`);
                 expect(response.status).toBe(200);
                 expect(response.body).toEqual(expected);
-                expect(spy).toHaveBeenCalledWith(1, 10, "*");
+                expect(spy).toHaveBeenCalledWith(0, 10, "*");
             } finally {
                 spy.mockRestore();
             }
@@ -209,9 +209,9 @@ describe("user listing and deletion fixtures", () => {
 
     test("list users combines filtering, limits, and successive pages", async () => {
         for (const [page, expected, more] of [
-            [1, users.slice(0, 2), true],
-            [2, users.slice(2), false],
-            [3, [], false],
+            [0, users.slice(0, 2), true],
+            [1, users.slice(2), false],
+            [2, [], false],
         ]) {
             const response = await list(adminToken, { name: `${prefix}*`, limit: 2, page });
             expect(response.status).toBe(200);
@@ -222,7 +222,7 @@ describe("user listing and deletion fixtures", () => {
     });
 
     test.each([
-        { page: 0 }, { page: -1 }, { page: "abc" }, { page: "1.5" },
+        { page: -1 }, { page: "abc" }, { page: "1.5" },
         { limit: 0 }, { limit: -1 }, { limit: "abc" }, { limit: "2.5" },
         { page: "9007199254740992" }, { limit: "9007199254740992" },
         { page: [1, 2] }, { name: ["a", "b"] },
