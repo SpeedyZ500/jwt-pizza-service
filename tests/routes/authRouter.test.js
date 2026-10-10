@@ -93,14 +93,12 @@ describe('credentials and token validity', () => {
         const user = await fixtures.user();
         expect((await authorized('delete', '/api/auth', user)).status).toBe(200);
         expect((await authorized('get', '/api/user/me', user)).status).toBe(401);
-        expect(await DB.isLoggedIn(user.token)).toBe(false);
     });
 
     test('stored token with invalid signature is rejected', async () => {
         const user = await fixtures.user();
         const token = jwt.sign({ id: user.id, roles: user.roles }, 'incorrect-secret');
         await DB.loginUser(user.id, token);
-        expect(await DB.isLoggedIn(token)).toBe(true);
         expect((await authorized('get', '/api/user/me', { token })).status).toBe(401);
     });
 

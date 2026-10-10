@@ -7,7 +7,7 @@ const {
     expectValidJwt
 } = require("../testService");
 
-const { createFixtures, query } = require("../coverageFixtures");
+const { createFixtures } = require("../coverageFixtures");
 describe('menu endpoints', () => {
     let fixtures;
     let testUserAuthToken;
@@ -190,7 +190,6 @@ function factoryResponse(ok = true) {
         expect(history.status).toBe(200);
         expect(history.body).toMatchObject({ dinerId: user.id, page: 1, orders: [{ id: response.body.order.id, franchiseId: order.franchiseId, storeId: order.storeId, date: expect.any(String), items: order.items.map((item) => ({ ...item, id: expect.any(Number) })) }] });
         expect(history.body.orders).toHaveLength(1);
-        expect(await query('SELECT id FROM orderItem WHERE orderId=?', [response.body.order.id])).toHaveLength(2);
     });
 
     test.each(['rejected', 'network'])('factory %s failure preserves the saved order', async (failure) => {

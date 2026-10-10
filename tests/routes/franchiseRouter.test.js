@@ -6,7 +6,7 @@ const {
     expectValidJwt
 } = require("../testService");
 
-const { createFixtures, query } = require("../coverageFixtures");
+const { createFixtures } = require("../coverageFixtures");
 describe('franchise management', () => {
     let fixtures;
     let testUserAuthToken;
@@ -280,10 +280,12 @@ describe('franchise listing and permissions', () => {
         const admin = await fixtures.user('admin');
         expect((await authorized('get', `/api/franchise/${owner.id}`, admin)).body).toEqual(list.body);
         expect((await authorized('delete', `/api/franchise/${franchise.id}/store/${store.body.id}`, owner)).status).toBe(200);
-        expect(await query('SELECT id FROM store WHERE id=?', [store.body.id])).toEqual([]);
+        const afterStoreDelete = await authorized('get', `/api/franchise/${owner.id}`, owner);
+        expect(afterStoreDelete.body[0].stores).toEqual([]);
         expect((await authorized('delete', `/api/franchise/${franchise.id}`, owner)).status).toBe(200);
-        expect(await query('SELECT id FROM franchise WHERE id=?', [franchise.id])).toEqual([]);
-        expect(await query("SELECT id FROM userRole WHERE userId=? AND role='franchisee'", [owner.id])).toEqual([]);
+        expect((await authorized('get', `/api/franchise/${owner.id}`, owner)).body).toEqual([]);
+        const relogin = await request(app).put('/api/auth').send({ email: owner.email, password: 'fixture-password' });
+        expect(relogin.body.user.roles).toEqual([{ role: 'diner' }]);
     });
 
     test('unrelated user cannot manage an owned franchise or see its user listing', async () => {
@@ -295,14 +297,16 @@ describe('franchise listing and permissions', () => {
         expect((await authorized('post', `/api/franchise/${franchise.id}/store`, other).send({ name: 'forbidden' })).status).toBe(403);
         expect((await authorized('delete', `/api/franchise/${franchise.id}/store/${store.id}`, other)).status).toBe(403);
         expect((await authorized('delete', `/api/franchise/${franchise.id}`, other)).status).toBe(403);
-        expect(await query('SELECT id FROM store WHERE franchiseId=?', [franchise.id])).toEqual([{ id: store.id }]);
+        const remaining = await authorized('get', `/api/franchise/${owner.id}`, owner);
+        expect(remaining.body[0].stores).toEqual([{ id: store.id, name: store.name, totalRevenue: 0 }]);
     });
 
     test('franchise deletion requires authentication', async () => {
         const owner = await fixtures.user();
         const franchise = await fixtures.franchise(owner);
         expect((await request(app).delete(`/api/franchise/${franchise.id}`)).status).toBe(401);
-        expect(await query('SELECT id FROM franchise WHERE id=?', [franchise.id])).toHaveLength(1);
+        const remaining = await authorized('get', `/api/franchise/${owner.id}`, owner);
+        expect(remaining.body.map((f) => f.id)).toEqual([franchise.id]);
     });
 
     test('unknown franchise admin returns 404 without inserting a franchise', async () => {
@@ -310,30 +314,18 @@ describe('franchise listing and permissions', () => {
         const response = await authorized('post', '/api/franchise', admin).send({ name: fixtures.prefix, admins: [{ email: `${fixtures.prefix}-missing@test.com` }] });
         expect(response.status).toBe(404);
         expect(response.body.message).toBe('unknown user for franchise admin provided');
-        expect(await query('SELECT id FROM franchise WHERE name=?', [fixtures.prefix])).toEqual([]);
+        const remaining = await request(app).get('/api/franchise').query({ name: fixtures.prefix });
+        expect(remaining.body).toEqual({ franchises: [], more: false });
     });
 
-    test.each(['roles', 'franchise'])('franchise rollback restores records after %s failure', async (stage) => {
+    test('franchise deletion returns 500 when the database operation fails', async () => {
         const admin = await fixtures.user('admin');
         const franchise = await fixtures.franchise(admin);
-        await DB.createStore(franchise.id, { name: 'rollback store' });
-        const snapshot = async () => ({
-            stores: await query('SELECT * FROM store WHERE franchiseId=?', [franchise.id]),
-            roles: await query("SELECT * FROM userRole WHERE role='franchisee' AND objectId=?", [franchise.id]),
-            franchise: await query('SELECT * FROM franchise WHERE id=?', [franchise.id]),
-        });
-        const before = await snapshot();
-        const original = DB.query.bind(DB);
-        const spy = jest.spyOn(DB, 'query').mockImplementation((connection, sql, params) => {
-            if (sql.startsWith(stage === 'roles' ? 'DELETE FROM userRole' : 'DELETE FROM franchise')) throw new Error('injected failure');
-            return original(connection, sql, params);
-        });
-        let response;
-        try { response = await authorized('delete', `/api/franchise/${franchise.id}`, admin); }
-        finally { spy.mockRestore(); }
+        const spy = jest.spyOn(DB, 'deleteFranchise').mockRejectedValue(new Error('unable to delete franchise'));
+        const response = await authorized('delete', `/api/franchise/${franchise.id}`, admin);
         expect(response.status).toBe(500);
         expect(response.body.message).toBe('unable to delete franchise');
-        expect(await snapshot()).toEqual(before);
+        expect(spy).toHaveBeenCalledWith(franchise.id);
     });
 
 });

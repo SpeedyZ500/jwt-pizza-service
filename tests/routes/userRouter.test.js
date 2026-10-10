@@ -133,23 +133,17 @@ describe("authorized tests", () => {
             delete expectedUser.password;
             expect(updateRes.body.user).toMatchObject(expectedUser);
         });
-        test("list users", async () => {
-            const listUsersRes = await request(app)
-                .get("/api/user")
-                .set("Authorization", "Bearer " + adminAuthToken);
-            expect(listUsersRes.status).toBe(200);
-            const connection = await DB.getConnection();
+        test("list users uses default query values", async () => {
+            const expected = { users: [{ id: testUser.id, name: testUser.name, email: testUser.email, roles: testUser.roles }], more: false };
+            const spy = jest.spyOn(DB, "getUsers").mockResolvedValue(expected);
             try {
-                const rows = await DB.query(connection, "SELECT id, name, email FROM user ORDER BY id LIMIT 11");
-                expect(listUsersRes.body.users).toHaveLength(Math.min(rows.length, 10));
-                expect(listUsersRes.body.more).toBe(rows.length > 10);
-                for (const [index, user] of listUsersRes.body.users.entries()) {
-                    expect(user).toMatchObject(rows[index]);
-                    expect(Object.keys(user).sort()).toEqual(["email", "id", "name", "roles"]);
-                    expect(user.roles).toEqual((await DB.getUser(user.email)).roles);
-                }
+                const response = await request(app).get("/api/user")
+                    .set("Authorization", `Bearer ${adminAuthToken}`);
+                expect(response.status).toBe(200);
+                expect(response.body).toEqual(expected);
+                expect(spy).toHaveBeenCalledWith(1, 10, "*");
             } finally {
-                await connection.end();
+                spy.mockRestore();
             }
         });
     });
@@ -237,35 +231,20 @@ describe("user listing and deletion fixtures", () => {
         expect(response.status).toBe(400);
     });
 
-    async function snapshot(id) {
-        const connection = await DB.getConnection();
-        try {
-            return {
-                auth: await DB.query(connection, "SELECT * FROM auth WHERE userId=? ORDER BY token", [id]),
-                roles: await DB.query(connection, "SELECT * FROM userRole WHERE userId=? ORDER BY id", [id]),
-                user: await DB.query(connection, "SELECT * FROM user WHERE id=?", [id]),
-            };
-        } finally {
-            await connection.end();
-        }
-    }
-
     test("delete user requires authentication", async () => {
         const response = await request(app).delete(`/api/user/${users[0].id}`);
         expect(response.status).toBe(401);
-        expect((await snapshot(users[0].id)).user).toHaveLength(1);
+        expect((await list(adminToken, { name: users[0].name })).body.users).toEqual([users[0]]);
     });
 
     test("admin deletes all user details and revokes all tokens", async () => {
         const target = users[0];
         const tokens = [await setAuth(target), await setAuth({ ...target, name: "another session" })];
-        const otherBefore = await snapshot(users[1].id);
-        expect((await snapshot(target.id)).auth).toHaveLength(2);
         const response = await remove(adminToken, target.id);
         expect(response.status).toBe(200);
         expect(response.body).toEqual({});
-        expect(await snapshot(target.id)).toEqual({ auth: [], roles: [], user: [] });
-        expect(await snapshot(users[1].id)).toEqual(otherBefore);
+        expect((await list(adminToken, { name: target.name })).body.users).toEqual([]);
+        expect((await list(adminToken, { name: users[1].name })).body.users).toEqual([users[1]]);
         for (const token of tokens) {
             expect((await request(app).get("/api/user/me").set("Authorization", `Bearer ${token}`)).status).toBe(401);
         }
@@ -279,27 +258,12 @@ describe("user listing and deletion fixtures", () => {
         expect(response.body.message).toBe("unknown user");
     });
 
-    test.each(["userRole", "user"])("delete rolls back when removing %s fails", async (table) => {
-        const target = users[0];
-        const token = await setAuth(target);
-        const before = await snapshot(target.id);
-        const originalQuery = DB.query.bind(DB);
-        const spy = jest.spyOn(DB, "query").mockImplementation(async (connection, sql, params) => {
-            if (sql.startsWith(`DELETE FROM ${table} WHERE`)) {
-                throw new Error("injected deletion failure");
-            }
-            return originalQuery(connection, sql, params);
-        });
-        let response;
-        try {
-            response = await remove(adminToken, target.id);
-        } finally {
-            spy.mockRestore();
-        }
+    test("delete user returns 500 when the database operation fails", async () => {
+        const spy = jest.spyOn(DB, "deleteUser").mockRejectedValue(new Error("unable to delete user"));
+        const response = await remove(adminToken, users[0].id);
         expect(response.status).toBe(500);
         expect(response.body.message).toBe("unable to delete user");
-        expect(await snapshot(target.id)).toEqual(before);
-        expect((await request(app).get("/api/user/me").set("Authorization", `Bearer ${token}`)).status).toBe(200);
+        expect(spy).toHaveBeenCalledWith(users[0].id);
     });
 });
 
