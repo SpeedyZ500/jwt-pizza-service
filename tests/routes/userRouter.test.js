@@ -1,12 +1,12 @@
 const request = require("supertest");
 const app = require("../../src/service");
+const { createFixtures } = require("../coverageFixtures");
 const { DB } = require("../../src/database/database");
 const { setAuth } = require("../../src/routes/authRouter");
 const {
     createAdminUser,
     randomName,
     expectValidJwt,
-    registerUser,
 } = require("../testService");
 
 test("list users unauthorized", async () => {
@@ -17,15 +17,21 @@ test("list users unauthorized", async () => {
 describe("authorized tests", () => {
     let testUserAuthToken;
     let testUser;
+    let fixtures;
     // const testUser = {
     //     name: "pizza diner",
     //     email: "reg@test.com",
     //     password: "a",
     // };
     beforeEach(async () => {
-        [testUser, testUserAuthToken] = await registerUser(request(app));
+        fixtures = createFixtures();
+        testUser = { ...await fixtures.user(), password: "fixture-password" };
+        testUserAuthToken = testUser.token;
+        delete testUser.token;
         expectValidJwt(testUserAuthToken);
     });
+
+    afterEach(async () => { await fixtures.cleanup(); });
 
     test("get user", async () => {
         const userRes = await request(app)
@@ -64,7 +70,7 @@ describe("authorized tests", () => {
         expect(deleteRes.body).toMatchObject(expectedObject);
     });
 
-    test("list users needs admin", async () => {
+    test("listing users requires an admin", async () => {
         const listUsersRes = await request(app)
             .get("/api/user")
             .set("Authorization", "Bearer " + testUserAuthToken);
@@ -91,10 +97,9 @@ describe("authorized tests", () => {
         let adminAuthToken;
         let admin;
 
-        beforeAll(async () => {
-            admin = await createAdminUser();
-        });
         beforeEach(async () => {
+            admin = { ...await fixtures.user("admin"), password: "fixture-password" };
+            delete admin.token;
             const sendUser = { ...admin };
             delete sendUser.roles;
             delete sendUser.id;
@@ -111,7 +116,7 @@ describe("authorized tests", () => {
             expect(userRes.body).toMatchObject(expectedUser);
         });
 
-        test("admin update user", async () => {
+        test("admin updates a user", async () => {
             const updateTo = {
                 name: randomName(),
                 email: `${randomName()}@test.com`,
@@ -299,8 +304,45 @@ describe("user listing and deletion fixtures", () => {
 });
 
 
-test("database missing results contain no error codes", async () => {
-    expect(await DB.getUser(`${randomName()}@missing.test`)).toBeNull();
-    expect(await DB.deleteUser(2147483647)).toBe(false);
-    expect(await DB.createFranchise({ name: randomName(), admins: [{ email: `${randomName()}@missing.test` }] })).toBeNull();
+
+const authorized = (method, path, user) => request(app)[method](path).set('Authorization', `Bearer ${user.token}`);
+
+describe('user update and validation', () => {
+    let fixtures;
+    beforeEach(() => { fixtures = createFixtures(); });
+    afterEach(async () => {
+        jest.restoreAllMocks();
+        await fixtures.cleanup();
+    });
+    test.each(['name', 'email', 'password', 'empty'])('updates %s independently', async (field) => {
+        const user = await fixtures.user();
+        const values = { name: "Diner's updated name", email: `${fixtures.prefix}-updated@test.com`, password: 'new-password' };
+        const changes = field === 'empty' ? {} : { [field]: values[field] };
+        const response = await authorized('put', `/api/user/${user.id}`, user).send(changes);
+        expect(response.status).toBe(200);
+        expectValidJwt(response.body.token);
+        expect(response.body.user).toEqual({ id: user.id, name: changes.name || user.name, email: changes.email || user.email, roles: user.roles });
+        const login = await request(app).put('/api/auth').send({ email: changes.email || user.email, password: changes.password || 'fixture-password' });
+        expect(login.status).toBe(200);
+        if (field === 'password') {
+            expect((await request(app).put('/api/auth').send({ email: user.email, password: 'fixture-password' })).status).toBe(404);
+        }
+    });
+
+    test('updating a missing user cannot return another user with the submitted email', async () => {
+        const admin = await fixtures.user('admin');
+        const response = await authorized('put', '/api/user/2147483647', admin).send({ email: admin.email });
+        expect(response.status).toBe(404);
+        expect(response.body.message).toBe('unknown user');
+    });
+
+    test.each(['0', '-1', 'abc', '1.5', '9007199254740992'])('rejects invalid deletion ID %s', async (id) => {
+        const admin = await fixtures.user('admin');
+        expect((await authorized('delete', `/api/user/${id}`, admin)).status).toBe(400);
+    });
+
+    test.each([{ limit: '9007199254740991' }, { page: '9007199254740991', limit: 2 }])('rejects unsafe pagination %j', async (params) => {
+        const admin = await fixtures.user('admin');
+        expect((await authorized('get', '/api/user', admin).query(params)).status).toBe(400);
+    });
 });

@@ -102,19 +102,26 @@ class DB {
                 return null;
             }
 
-            const roleResult = await this.query(
-                connection,
-                `SELECT * FROM userRole WHERE userId=?`,
-                [user.id],
-            );
-            const roles = roleResult.map((r) => {
-                return { objectId: r.objectId || undefined, role: r.role };
-            });
-
-            return { ...user, roles: roles, password: undefined };
+            return await this._withUserRoles(connection, user);
         } finally {
             connection.end();
         }
+    }
+
+    async _withUserRoles(connection, user) {
+        if (!user) {
+            return null;
+        }
+        const roleResult = await this.query(
+            connection,
+            "SELECT role, objectId FROM userRole WHERE userId=? ORDER BY id",
+            [user.id],
+        );
+        const roles = roleResult.map((role) => ({
+            role: role.role,
+            objectId: role.objectId || undefined,
+        }));
+        return { ...user, roles, password: undefined };
     }
 
     async getUsers(page = 1, limit = 10, name = "*") {
@@ -176,24 +183,27 @@ class DB {
     async updateUser(userId, name, email, password) {
         const connection = await this.getConnection();
         try {
-            const params = [];
+            const fields = [];
+            const values = [];
             if (password) {
-                const hashedPassword = await bcrypt.hash(password, 10);
-                params.push(`password='${hashedPassword}'`);
+                fields.push("password=?");
+                values.push(await bcrypt.hash(password, 10));
             }
             if (email) {
-                params.push(`email='${email}'`);
+                fields.push("email=?");
+                values.push(email);
             }
             if (name) {
-                params.push(`name='${name}'`);
+                fields.push("name=?");
+                values.push(name);
             }
-            if (params.length > 0) {
-                const query = `UPDATE user SET ${params.join(", ")} WHERE id=${userId}`;
-                await this.query(connection, query);
+            if (fields.length > 0) {
+                await this.query(connection, `UPDATE user SET ${fields.join(", ")} WHERE id=?`, [...values, userId]);
             }
-            return this.getUser(email, password);
+            const users = await this.query(connection, "SELECT id, name, email FROM user WHERE id=?", [userId]);
+            return await this._withUserRoles(connection, users[0]);
         } finally {
-            connection.end();
+            await connection.end();
         }
     }
 
@@ -244,7 +254,7 @@ class DB {
             const offset = this.getOffset(page, config.db.listPerPage);
             const orders = await this.query(
                 connection,
-                `SELECT id, franchiseId, storeId, date FROM dinerOrder WHERE dinerId=? LIMIT ${offset},${config.db.listPerPage}`,
+                `SELECT id, franchiseId, storeId, date FROM dinerOrder WHERE dinerId=? ORDER BY id LIMIT ${offset},${config.db.listPerPage}`,
                 [user.id],
             );
             for (const order of orders) {
@@ -359,14 +369,16 @@ class DB {
     async getFranchises(authUser, page = 0, limit = 10, nameFilter = "*") {
         const connection = await this.getConnection();
 
+        page = Number(page);
+        limit = Number(limit);
         const offset = page * limit;
         nameFilter = nameFilter.replace(/\*/g, "%");
 
         try {
             let franchises = await this.query(
                 connection,
-                `SELECT id, name FROM franchise WHERE name LIKE ? LIMIT ${limit + 1} OFFSET ${offset}`,
-                [nameFilter],
+                "SELECT id, name FROM franchise WHERE name LIKE ? ORDER BY id LIMIT ? OFFSET ?",
+                [nameFilter, String(limit + 1), String(offset)],
             );
 
             const more = franchises.length > limit;
