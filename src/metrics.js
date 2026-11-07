@@ -12,7 +12,7 @@ function getMemoryUsagePercentage() {
   const freeMemory = os.freemem();
   const usedMemory = totalMemory - freeMemory;
   const memoryUsage = (usedMemory / totalMemory) * 100;
-  return memoryUsage.toFixed(2);
+  return Number(memoryUsage.toFixed(2));
 }
 
 // Metrics stored in memory
@@ -33,7 +33,7 @@ function recordLatency(ms){
   requestCount += 1;
   let foundBucket = false;
   for( const [index, value] of latencyBounds.entries()){
-    if(ms < value){
+    if(ms <= value){
       latencyBuckets[index] = latencyBuckets[index] + 1;
       foundBucket = true;
       break;
@@ -44,19 +44,6 @@ function recordLatency(ms){
   }
 
 }
-
-function getAndResetWindowed() {
-  const currentMin = minLatency === Infinity ? 0 : minLatency;
-  const currentMax = maxLatency;
-  
-  // Reset for the next interval
-  minLatency = Infinity;
-  maxLatency = 0;
-  
-  return { currentMin, currentMax };
-}
-
-
 
 // Middleware to track requests
 function requestTracker(req, res, next) {
@@ -108,7 +95,7 @@ let pizzaCreate = 0;
 let pizzas = {}
 let revenue = 0;
 const pizzaLatencyBounds = [100, 500, 1000];
-const pizzaLatencyBuckets = Array(latencyBounds.length + 1).fill(0);
+const pizzaLatencyBuckets = Array(pizzaLatencyBounds.length + 1).fill(0);
 
 let minPizzaLatency = Infinity;
 let maxPizzaLatency = 0;
@@ -117,13 +104,13 @@ let maxPizzaLatency = 0;
 
 
 function pizzaPurchase(success, latency, price, sold){
-  if (latency < minPizzaLatency) minLatency = latency;
-  if (latency > maxPizzaLatency) maxLatency = latency;
+  if (latency < minPizzaLatency) minPizzaLatency = latency;
+  if (latency > maxPizzaLatency) maxPizzaLatency = latency;
   pizzaLatency += latency;
   pizzaCreate++;
   let foundBucket = false;
   for( const [index, value] of pizzaLatencyBounds.entries()){
-    if(latency < value){
+    if(latency <= value){
       pizzaLatencyBuckets[index] = pizzaLatencyBuckets[index] + 1;
       foundBucket = true;
       break;
@@ -139,17 +126,6 @@ function pizzaPurchase(success, latency, price, sold){
     pizzas['failure'] = (pizzas['failure'] || 0) + 1;
   }
   revenue += price;
-}
-
-function getAndResetPizzaWindowed() {
-  const currentMin = minPizzaLatency === Infinity ? 0 : minPizzaLatency;
-  const currentMax = maxPizzaLatency;
-  
-  // Reset for the next interval
-  minPizzaLatency = Infinity;
-  maxPizzaLatency = 0;
-  
-  return { currentMin, currentMax };
 }
 
 const activeUsers = new Map();
@@ -172,21 +148,24 @@ function getNumberActiveUsers(){
   return active
 }
 
-let startTimeUnixNano = Date.now() * 1000000;
+const cumulativeTemporality = 2;
+const startTimeUnixNano = toUnixNano(Math.round(performance.timeOrigin));
+
+function toUnixNano(milliseconds) {
+  return (BigInt(milliseconds) * 1000000n).toString();
+}
 function sendMetricsPeriodically(period) {
   
-  const timer = setInterval(() => {
+  setInterval(() => {
     try {
       const metrics = new OtelMetricBuilder();
       metrics.addGauge("cpu", getCpuUsagePercentage(), "%", "asInt", {});
-      metrics.addGauge("memory", getMemoryUsagePercentage(), "%", "asInt", {});
+      metrics.addGauge("memory", getMemoryUsagePercentage(), "%", "asDouble", {});
       metrics.addGauge("users", getNumberActiveUsers(), "1", "asInt", {});
-      const {curMin, curMax} = getAndResetWindowed();
-      metrics.addHistogram("request_latency", totalLatency, requestCount, latencyBuckets, latencyBounds, curMin, curMax, "ms", {});
-      const {currPizzaMin, currPizzaMax} = getAndResetPizzaWindowed()
-      metrics.addHistogram("pizza_creation_latency", pizzaLatency, pizzaCreate, pizzaLatencyBuckets, pizzaLatencyBounds, currPizzaMin, currPizzaMax, "ms", {});
+      metrics.addHistogram("request_latency", totalLatency, requestCount, latencyBuckets, latencyBounds, minLatency, maxLatency, "ms", {});
+      metrics.addHistogram("pizza_creation_latency", pizzaLatency, pizzaCreate, pizzaLatencyBuckets, pizzaLatencyBounds, minPizzaLatency, maxPizzaLatency, "ms", {});
 
-      metrics.addSum("revenue", revenue, "1", "asInt", {});
+      metrics.addSum("revenue", revenue, "1", "asDouble", {});
       Object.keys(pizzas).forEach((pizza) => {
         metrics.addSum("pizzas", pizzas[pizza], "1", "asInt", { pizza })
       })
@@ -204,23 +183,11 @@ function sendMetricsPeriodically(period) {
       })
 
       metrics.sendToGrafana();
-      startTimeUnixNano = Date.now() * 1000000;
     } catch (error) {
       console.log('Error sending metrics', error);
     }
   }, period);
 }
-// Periodically send metrics to Grafana
-// setInterval(() => {
-//   const metrics = [];
-//   Object.keys(requests).forEach((endpoint) => {
-//     metrics.push(createMetric('requests', requests[endpoint], '1', 'sum', 'asInt', { endpoint }));
-//   });
-
-//   metrics.push(createMetric('greetingChange', greetingChangedCount, '1', 'sum', 'asInt', {}));
-
-// }, 10000);
-
 function createMetric(metricName, metricValue, metricUnit, metricType, valueType, attributes) {
   attributes = { ...attributes, source: config.metrics.source };
 
@@ -230,8 +197,8 @@ function createMetric(metricName, metricValue, metricUnit, metricType, valueType
     [metricType]: {
       dataPoints: [
         {
-          [valueType]: metricValue,
-          timeUnixNano: Date.now() * 1000000,
+          [valueType]: valueType === 'asInt' ? String(metricValue) : metricValue,
+          timeUnixNano: toUnixNano(Date.now()),
           attributes: [],
         },
       ],
@@ -241,12 +208,13 @@ function createMetric(metricName, metricValue, metricUnit, metricType, valueType
   Object.keys(attributes).forEach((key) => {
     metric[metricType].dataPoints[0].attributes.push({
       key: key,
-      value: { stringValue: attributes[key] },
+      value: { stringValue: String(attributes[key]) },
     });
   });
 
   if (metricType === 'sum') {
-    metric[metricType].aggregationTemporality = 'AGGREGATION_TEMPORALITY_CUMULATIVE';
+    metric.sum.aggregationTemporality = cumulativeTemporality;
+    metric.sum.dataPoints[0].startTimeUnixNano = startTimeUnixNano;
     metric[metricType].isMonotonic = true;
   }
 
@@ -256,10 +224,7 @@ function createMetric(metricName, metricValue, metricUnit, metricType, valueType
 class OtelMetricBuilder{
   metrics = [];
   addSum(metricName, metricValue, metricUnit, valueType, attributes){
-    const metric = createMetric(metricName, metricValue, metricUnit, "sum", valueType, attributes)
-    metric.sum.aggregationTemporality = 'AGGREGATION_TEMPORALITY_CUMULATIVE';
-    metric.sum.isMonotonic = true;
-    this.metrics.push(metric)
+    this.metrics.push(createMetric(metricName, metricValue, metricUnit, "sum", valueType, attributes));
   }
 
   addGauge(metricName, metricValue, metricUnit, valueType, attributes){
@@ -268,75 +233,57 @@ class OtelMetricBuilder{
 
   addHistogram(metricName, sum, count, bucket, bounds, mini, maxi, metricUnit, attributes){
     const metric = createMetric(metricName, sum, metricUnit, "histogram", "sum", attributes)
-    metric.histogram.dataPoints[0].startTimeUnixNano = startTimeUnixNano;
-    metric.histogram.dataPoints[0].count = count;
-    metric.histogram.dataPoints[0].bucketCounts = bucket;
-    metric.histogram.dataPoints[0].explicitBounds = bounds;
-    metric.histogram.dataPoints[0].mini = mini;
-    metric.histogram.dataPoints[0].maxi = maxi;
+    metric.histogram.aggregationTemporality = cumulativeTemporality;
+    const point = metric.histogram.dataPoints[0];
+    point.startTimeUnixNano = startTimeUnixNano;
+    point.count = String(count);
+    point.bucketCounts = bucket.map(String);
+    point.explicitBounds = bounds;
+    if (count > 0) {
+      point.min = mini;
+      point.max = maxi;
+    }
 
     this.metrics.push(metric)
   }
 
 
-  sendToGrafana() {
-    const metrics = this.metrics
+  async sendToGrafana() {
+    const { endpointUrl, accountId, apiKey } = config.metrics;
+    const credentials = Buffer.from(`${accountId}:${apiKey}`).toString('base64');
     const body = {
-      resourceMetrics: [
-        {
-          scopeMetrics: [
-            {
-              metrics,
-            },
-          ],
-        },
-      ],
+      resourceMetrics: [{ scopeMetrics: [{ metrics: this.metrics }] }],
     };
 
-    fetch(`${config.metrics.endpointUrl}`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-      headers: { Authorization: `Bearer ${config.metrics.accountId}:${config.metrics.apiKey}`, 'Content-Type': 'application/json' },
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`HTTP status: ${response.status}`);
-        }
-      })
-      .catch((error) => {
-        console.error('Error pushing metrics:', error);
-      });
-  }
-
-  createMetric(metricName, metricValue, metricUnit, metricType, valueType, attributes) {
-    attributes = { ...attributes, source: config.metrics.source };
-
-    const metric = {
-      name: metricName,
-      unit: metricUnit,
-      [metricType]: {
-        dataPoints: [
-          {
-            [valueType]: metricValue,
-            timeUnixNano: Date.now() * 1000000,
-            attributes: [],
-          },
-        ],
-      },
+    const safeDetail = (value) => {
+      let detail = String(value ?? '');
+      for (const secret of [credentials, String(apiKey ?? ''), String(accountId ?? '')]) {
+        if (secret) detail = detail.replaceAll(secret, '[redacted]');
+      }
+      return detail.slice(0, 512);
     };
 
-    Object.keys(attributes).forEach((key) => {
-      metric[metricType].dataPoints[0].attributes.push({
-        key: key,
-        value: { stringValue: attributes[key] },
+    try {
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/json' },
       });
-    });
+      const responseBody = await response.text();
+      if (!response.ok) {
+        console.error('Error pushing metrics:', response.status, safeDetail(responseBody));
+        return;
+      }
 
-    return metric;
+      const partialSuccess = responseBody ? JSON.parse(responseBody).partialSuccess : undefined;
+      if (Number(partialSuccess?.rejectedDataPoints) > 0 || partialSuccess?.errorMessage) {
+        console.warn('Grafana metrics partial success:', Number(partialSuccess.rejectedDataPoints ?? 0),
+          safeDetail(partialSuccess.errorMessage));
+      }
+    } catch (error) {
+      console.error('Error pushing metrics:', safeDetail(error.message));
+    }
   }
-
 }
-
-
 
 module.exports = { requestTracker, sendMetricsPeriodically, recordAuth, pizzaPurchase, isActiveUser };
