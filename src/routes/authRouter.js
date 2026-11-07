@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const config = require('../config.js');
 const { asyncHandler } = require('../endpointHelper.js');
 const { DB, Role } = require('../database/database.js');
-const {recordAuth} = require('../metrics.js');
+const metrics = require('../metrics.js');
 
 const authRouter = express.Router();
 
@@ -53,7 +53,8 @@ authRouter.authenticateToken = (req, res, next) => {
   if (!req.user) {
     return res.status(401).send({ message: 'unauthorized' });
   }
-  recordAuth(true)
+  metrics.recordAuth(true)
+  metrics.isActiveUser(req.user.id)
   next();
 };
 
