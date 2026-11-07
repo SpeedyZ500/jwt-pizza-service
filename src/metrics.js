@@ -222,7 +222,7 @@ function sendMetricsPeriodically(period) {
 // }, 10000);
 
 function createMetric(metricName, metricValue, metricUnit, metricType, valueType, attributes) {
-  attributes = { ...attributes, source: config.source };
+  attributes = { ...attributes, source: config.metrics.source };
 
   const metric = {
     name: metricName,
@@ -279,7 +279,7 @@ class OtelMetricBuilder{
   }
 
 
-  sendMetricToGrafana() {
+  sendToGrafana() {
     const metrics = this.metrics
     const body = {
       resourceMetrics: [
@@ -293,10 +293,10 @@ class OtelMetricBuilder{
       ],
     };
 
-    fetch(`${config.endpointUrl}`, {
+    fetch(`${config.metrics.endpointUrl}`, {
       method: 'POST',
       body: JSON.stringify(body),
-      headers: { Authorization: `Bearer ${config.accountId}:${config.apiKey}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${config.metrics.accountId}:${config.metrics.apiKey}`, 'Content-Type': 'application/json' },
     })
       .then((response) => {
         if (!response.ok) {
@@ -309,7 +309,7 @@ class OtelMetricBuilder{
   }
 
   createMetric(metricName, metricValue, metricUnit, metricType, valueType, attributes) {
-    attributes = { ...attributes, source: config.source };
+    attributes = { ...attributes, source: config.metrics.source };
 
     const metric = {
       name: metricName,
