@@ -157,13 +157,29 @@ function toUnixNano(milliseconds) {
 function sendMetricsPeriodically(period) {
   
   setInterval(() => {
+    const requestMin = minLatency;
+    const requestMax = maxLatency;
+    const pizzaMin = minPizzaLatency;
+    const pizzaMax = maxPizzaLatency;
+    minLatency = minPizzaLatency = Infinity;
+    maxLatency = maxPizzaLatency = 0;
+
     try {
       const metrics = new OtelMetricBuilder();
       metrics.addGauge("cpu", getCpuUsagePercentage(), "%", "asInt", {});
       metrics.addGauge("memory", getMemoryUsagePercentage(), "%", "asDouble", {});
       metrics.addGauge("users", getNumberActiveUsers(), "1", "asInt", {});
-      metrics.addHistogram("request_latency", totalLatency, requestCount, latencyBuckets, latencyBounds, minLatency, maxLatency, "ms", {});
-      metrics.addHistogram("pizza_creation_latency", pizzaLatency, pizzaCreate, pizzaLatencyBuckets, pizzaLatencyBounds, minPizzaLatency, maxPizzaLatency, "ms", {});
+      metrics.addHistogram("request_latency", totalLatency, requestCount, latencyBuckets, latencyBounds, "ms", {});
+      metrics.addHistogram("pizza_creation_latency", pizzaLatency, pizzaCreate, pizzaLatencyBuckets, pizzaLatencyBounds, "ms", {});
+
+      if (requestMin !== Infinity) {
+        metrics.addGauge("request_latency_min", requestMin, "ms", "asDouble", {});
+        metrics.addGauge("request_latency_max", requestMax, "ms", "asDouble", {});
+      }
+      if (pizzaMin !== Infinity) {
+        metrics.addGauge("pizza_creation_latency_min", pizzaMin, "ms", "asDouble", {});
+        metrics.addGauge("pizza_creation_latency_max", pizzaMax, "ms", "asDouble", {});
+      }
 
       metrics.addSum("revenue", revenue, "1", "asDouble", {});
       Object.keys(pizzas).forEach((pizza) => {
@@ -231,7 +247,7 @@ class OtelMetricBuilder{
     this.metrics.push(createMetric(metricName, metricValue, metricUnit, "gauge", valueType, attributes))
   }
 
-  addHistogram(metricName, sum, count, bucket, bounds, mini, maxi, metricUnit, attributes){
+  addHistogram(metricName, sum, count, bucket, bounds, metricUnit, attributes){
     const metric = createMetric(metricName, sum, metricUnit, "histogram", "sum", attributes)
     metric.histogram.aggregationTemporality = cumulativeTemporality;
     const point = metric.histogram.dataPoints[0];
@@ -239,10 +255,6 @@ class OtelMetricBuilder{
     point.count = String(count);
     point.bucketCounts = bucket.map(String);
     point.explicitBounds = bounds;
-    if (count > 0) {
-      point.min = mini;
-      point.max = maxi;
-    }
 
     this.metrics.push(metric)
   }
