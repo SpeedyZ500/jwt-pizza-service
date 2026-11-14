@@ -199,8 +199,8 @@ function sendMetricsPeriodically(period) {
       })
 
       metrics.sendToGrafana();
-    } catch (error) {
-      console.log('Error sending metrics', error);
+    } catch {
+      console.log('Error sending metrics');
     }
   }, period);
 }
@@ -267,33 +267,24 @@ class OtelMetricBuilder{
       resourceMetrics: [{ scopeMetrics: [{ metrics: this.metrics }] }],
     };
 
-    const safeDetail = (value) => {
-      let detail = String(value ?? '');
-      for (const secret of [credentials, String(apiKey ?? ''), String(accountId ?? '')]) {
-        if (secret) detail = detail.replaceAll(secret, '[redacted]');
-      }
-      return detail.slice(0, 512);
-    };
-
     try {
       const response = await fetch(endpointUrl, {
         method: 'POST',
         body: JSON.stringify(body),
         headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/json' },
       });
-      const responseBody = await response.text();
       if (!response.ok) {
-        console.error('Error pushing metrics:', response.status, safeDetail(responseBody));
+        console.error('Error pushing metrics:', response.status);
         return;
       }
 
+      const responseBody = await response.text();
       const partialSuccess = responseBody ? JSON.parse(responseBody).partialSuccess : undefined;
       if (Number(partialSuccess?.rejectedDataPoints) > 0 || partialSuccess?.errorMessage) {
-        console.warn('Grafana metrics partial success:', Number(partialSuccess.rejectedDataPoints ?? 0),
-          safeDetail(partialSuccess.errorMessage));
+        console.warn('Grafana metrics reported partial success');
       }
-    } catch (error) {
-      console.error('Error pushing metrics:', safeDetail(error.message));
+    } catch {
+      console.error('Error pushing metrics');
     }
   }
 }

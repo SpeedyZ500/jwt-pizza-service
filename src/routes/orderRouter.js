@@ -3,7 +3,8 @@ const config = require("../config.js");
 const { Role, DB } = require("../database/database.js");
 const { authRouter } = require("./authRouter.js");
 const { asyncHandler, StatusCodeError } = require("../endpointHelper.js");
-const metrics = require("../metrics.js")
+const metrics = require("../metrics.js");
+const logger = require("../logger.js");
 
 const orderRouter = express.Router();
 
@@ -35,7 +36,7 @@ orderRouter.docs = [
         method: "DELETE",
         path: "/api/order/menu/:itemId",
         requiresAuth: true,
-        description: "Remmoves an item from the menu",
+        description: "Removes an item from the menu",
         example: `curl -X DELETE localhost:3000/api/order/menu/1' -H 'Authorization: Bearer tttttt'`,
         response: { message: "menu item deleted" },
     },
@@ -138,23 +139,33 @@ orderRouter.post(
         const orderReq = req.body;
         const order = await DB.addDinerOrder(req.user, orderReq);
         const startTime = Date.now()
-        const r = await fetch(`${config.factory.url}/api/order`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                authorization: `Bearer ${config.factory.apiKey}`,
+        const orderInfo = {
+            diner: {
+                id: req.user.id,
+                name: req.user.name,
+                email: req.user.email,
             },
-            body: JSON.stringify({
-                diner: {
-                    id: req.user.id,
-                    name: req.user.name,
-                    email: req.user.email,
+            order,
+        };
+        let r;
+        let j;
+        let latency;
+        try {
+            r = await fetch(`${config.factory.url}/api/order`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    authorization: `Bearer ${config.factory.apiKey}`,
                 },
-                order,
-            }),
-        });
-        const latency = Date.now() - startTime;
-        const j = await r.json();
+                body: JSON.stringify(orderInfo),
+            });
+            latency = Date.now() - startTime;
+            j = await r.json();
+        } catch (error) {
+            logger.factoryLogger(orderInfo, null, r?.status ?? null, true);
+            throw error;
+        }
+        logger.factoryLogger(orderInfo, j, r.status);
         if (r.ok) {
             let price = 0.00
             let sold = 0;

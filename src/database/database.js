@@ -3,7 +3,7 @@ const bcrypt = require("bcrypt");
 const config = require("../config.js");
 const { Role } = require("../model/model.js");
 const dbModel = require("./dbModel.js");
-// const logger = require("../logger.js");
+const logger = require("../logger.js");
 class DB {
     constructor() {
         this.initialized = this.initializeDatabase();
@@ -156,6 +156,7 @@ class DB {
     async deleteUser(userId) {
         const connection = await this.getConnection();
         try {
+            logger.dbLogger("START TRANSACTION");
             await connection.beginTransaction();
             try {
                 const users = await this.query(
@@ -164,15 +165,18 @@ class DB {
                     [userId],
                 );
                 if (users.length === 0) {
+                    logger.dbLogger("ROLLBACK");
                     await connection.rollback();
                     return false;
                 }
                 await this.query(connection, "DELETE FROM auth WHERE userId=?", [userId]);
                 await this.query(connection, "DELETE FROM userRole WHERE userId=?", [userId]);
                 await this.query(connection, "DELETE FROM user WHERE id=?", [userId]);
+                logger.dbLogger("COMMIT");
                 await connection.commit();
                 return true;
             } catch (error) {
+                logger.dbLogger("ROLLBACK");
                 await connection.rollback();
                 throw new Error("unable to delete user", { cause: error });
             }
@@ -340,6 +344,7 @@ class DB {
     async deleteFranchise(franchiseId) {
         const connection = await this.getConnection();
         try {
+            logger.dbLogger("START TRANSACTION");
             await connection.beginTransaction();
             try {
                 await this.query(
@@ -357,8 +362,10 @@ class DB {
                     `DELETE FROM franchise WHERE id=?`,
                     [franchiseId],
                 );
+                logger.dbLogger("COMMIT");
                 await connection.commit();
             } catch (error) {
+                logger.dbLogger("ROLLBACK");
                 await connection.rollback();
                 throw new Error("unable to delete franchise", { cause: error });
             }
@@ -496,9 +503,14 @@ class DB {
     }
 
     async query(connection, sql, params) {
-        // logger.log("info", "db",);
+        logger.dbLogger(sql);
         const [results] = await connection.execute(sql, params);
         return results;
+    }
+
+    async rawQuery(connection, sql) {
+        logger.dbLogger(sql);
+        return connection.query(sql);
     }
 
     async getID(connection, key, value, table) {
@@ -528,7 +540,7 @@ class DB {
             decimalNumbers: true,
         });
         if (setUse) {
-            await connection.query(`USE ${config.db.connection.database}`);
+            await this.rawQuery(connection, `USE ${config.db.connection.database}`);
         }
         return connection;
     }
@@ -544,17 +556,18 @@ class DB {
                         : "Database does not exist, creating it",
                 );
 
-                await connection.query(
+                await this.rawQuery(
+                    connection,
                     `CREATE DATABASE IF NOT EXISTS ${config.db.connection.database}`,
                 );
-                await connection.query(`USE ${config.db.connection.database}`);
+                await this.rawQuery(connection, `USE ${config.db.connection.database}`);
 
                 if (!dbExists) {
                     console.log("Successfully created database");
                 }
 
                 for (const statement of dbModel.tableCreateStatements) {
-                    await connection.query(statement);
+                    await this.rawQuery(connection, statement);
                 }
 
                 if (!dbExists) {
@@ -569,14 +582,8 @@ class DB {
             } finally {
                 connection.end();
             }
-        } catch (err) {
-            console.error(
-                JSON.stringify({
-                    message: "Error initializing database",
-                    exception: err.message,
-                    connection: config.db.connection,
-                }),
-            );
+        } catch {
+            console.error("Error initializing database");
         }
     }
 

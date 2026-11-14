@@ -172,7 +172,7 @@ async function orderFixtures() {
 }
 
 function factoryResponse(ok = true) {
-    return jest.spyOn(global, 'fetch').mockResolvedValue({ ok, json: async () => ({ jwt: 'factory-jwt', reportUrl: 'https://example.test/report' }) });
+    return jest.spyOn(global, 'fetch').mockResolvedValue({ ok, status: ok ? 200 : 503, json: async () => ({ jwt: 'factory-jwt', reportUrl: 'https://example.test/report' }) });
 }
 
     test('creates multi-item orders, persists history, and sends the factory request', async () => {

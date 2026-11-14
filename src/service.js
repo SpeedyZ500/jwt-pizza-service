@@ -10,10 +10,11 @@ const logger = require('./logger');
 
 
 const app = express();
+app.use(logger.httpLogger);
 app.use(express.json());
 app.use(setAuthUser);
+app.use(logger.requestContext);
 app.use(metrics.requestTracker);
-app.use(logger.httpLogger);
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
@@ -52,8 +53,14 @@ app.use('*', (req, res) => {
 
 // Default error handler for all exceptions and errors.
 app.use((err, req, res, next) => {
-  res.status(err.statusCode ?? 500).json({ message: err.message, stack: err.stack });
-  next();
+  logger.unhandledErrorLogger(err);
+  if (res.headersSent) {
+    const safeError = new Error('Unexpected error');
+    safeError.stack = safeError.message;
+    return next(safeError);
+  }
+  if (err.type === 'entity.parse.failed') res.locals.malformedRequestBody = true;
+  return res.status(err.statusCode ?? 500).json({ message: err.message, stack: err.stack });
 });
 
 module.exports = app;
