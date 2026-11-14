@@ -1,5 +1,5 @@
 const app = require('./service.js');
-const metrics = require('./metrics.js')
+const metrics = require('./metrics.js');
 
 metrics.sendMetricsPeriodically(6000);
 const port = process.argv[2] || 3000;

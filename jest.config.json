@@ -1,5 +1,7 @@
 {
   "collectCoverage": true,
+  "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
+  "coveragePathIgnorePatterns": ["/node_modules/", "<rootDir>/src/(logger|metrics)\\.js$"],
   "coverageReporters": ["json-summary", "text"],
   "coverageThreshold": {
     "global": {
