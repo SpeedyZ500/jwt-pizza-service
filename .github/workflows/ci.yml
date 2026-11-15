@@ -100,6 +100,44 @@ jobs:
         with:
           name: package
           path: dist/
+      - name: Annotate deployment in Grafana
+        run: |
+            curl -s -X POST https://${{secrets.GRAFANA_CLOUD_DOMAIN}}.grafana.net/api/annotations \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dashboardUID":"xyz123", "panelId":1, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+            curl -s -X POST https://${{secrets.GRAFANA_CLOUD_DOMAIN}}.grafana.net/api/annotations \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dashboardUID":"xyz123", "panelId":12, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+            curl -s -X POST https://${{secrets.GRAFANA_CLOUD_DOMAIN}}.grafana.net/api/annotations \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dashboardUID":"xyz123", "panelId":2, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+            curl -s -X POST https://${{secrets.GRAFANA_CLOUD_DOMAIN}}.grafana.net/api/annotations \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dashboardUID":"xyz123", "panelId":3, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+            curl -s -X POST https://${{secrets.GRAFANA_CLOUD_DOMAIN}}.grafana.net/api/annotations \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dashboardUID":"xyz123", "panelId":4, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+            curl -s -X POST https://${{secrets.GRAFANA_CLOUD_DOMAIN}}.grafana.net/api/annotations \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dashboardUID":"xyz123", "panelId":5, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+            curl -s -X POST https://${{secrets.GRAFANA_CLOUD_DOMAIN}}.grafana.net/api/annotations \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dashboardUID":"xyz123", "panelId":7, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+            curl -s -X POST https://${{secrets.GRAFANA_CLOUD_DOMAIN}}.grafana.net/api/annotations \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dashboardUID":"xyz123", "panelId":8, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+            curl -s -X POST https://${{secrets.GRAFANA_CLOUD_DOMAIN}}.grafana.net/api/annotations \
+            -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dashboardUID":"xyz123", "panelId":10, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
   deploy:
     runs-on: ubuntu-latest
     permissions:
