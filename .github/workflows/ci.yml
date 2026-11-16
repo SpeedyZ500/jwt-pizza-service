@@ -148,38 +148,38 @@ jobs:
             curl -s -X POST https://niftymesa3120.grafana.net/api/annotations \
             -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{"dashboardUID":${{secrets.DASHBOARD_UID}}, "panelId":1, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+            -d '{"dashboardUID":"spmtgqr", "panelId":1, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
             curl -s -X POST https://niftymesa3120.grafana.net/api/annotations \
             -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{"dashboardUID":${{secrets.DASHBOARD_UID}}, "panelId":4, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+            -d '{"dashboardUID":"spmtgqr", "panelId":4, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
           # curl -s -X POST https://niftymesa3120.grafana.net/api/annotations \
           # -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
           # -H "Content-Type: application/json" \
-          # -d '{"dashboardUID":${{secrets.DASHBOARD_UID}}, "panelId":12, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+          # -d '{"dashboardUID":spmtgqr, "panelId":12, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
           # curl -s -X POST https://niftymesa3120.grafana.net/api/annotations \
           # -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
           # -H "Content-Type: application/json" \
-          # -d '{"dashboardUID":${{secrets.DASHBOARD_UID}}, "panelId":2, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+          # -d '{"dashboardUID":spmtgqr, "panelId":2, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
           # curl -s -X POST https://niftymesa3120.grafana.net/api/annotations \
           # -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
           # -H "Content-Type: application/json" \
-          # -d '{"dashboardUID":${{secrets.DASHBOARD_UID}}, "panelId":3, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+          # -d '{"dashboardUID":spmtgqr, "panelId":3, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
             
           # curl -s -X POST https://niftymesa3120.grafana.net/api/annotations \
           # -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
           # -H "Content-Type: application/json" \
-          # -d '{"dashboardUID":${{secrets.DASHBOARD_UID}}, "panelId":5, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+          # -d '{"dashboardUID":spmtgqr, "panelId":5, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
           # curl -s -X POST https://niftymesa3120.grafana.net/api/annotations \
           # -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
           # -H "Content-Type: application/json" \
-          # -d '{"dashboardUID":${{secrets.DASHBOARD_UID}}, "panelId":7, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+          # -d '{"dashboardUID":spmtgqr, "panelId":7, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
           # curl -s -X POST https://niftymesa3120.grafana.net/api/annotations \
           # -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
           # -H "Content-Type: application/json" \
-          # -d '{"dashboardUID":${{secrets.DASHBOARD_UID}}, "panelId":8, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+          # -d '{"dashboardUID":spmtgqr, "panelId":8, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
           # curl -s -X POST https://niftymesa3120.grafana.net/api/annotations \
           # -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" \
           # -H "Content-Type: application/json" \
-          # -d '{"dashboardUID":${{secrets.DASHBOARD_UID}}, "panelId":10, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
+          # -d '{"dashboardUID":spmtgqr, "panelId":10, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
         
